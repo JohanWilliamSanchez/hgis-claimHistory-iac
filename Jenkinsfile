@@ -18,11 +18,23 @@ pipeline {
                 dir('./manual') {                              // ← cambia el directorio para todos los sh
                     echo "Ejecutando análisis estático de seguridad..."
                     
-                    sh 'cfn-lint template.yaml || true'
+                    sh 'cfn-lint template.yml || true'
                     sh 'sam validate'
                     
                     echo "Escaneando template de infraestructura..."
                     sh 'checkov -f template.yml --soft-fail'
+                }
+            }
+        }
+
+        stage('5. Validar Credenciales AWS') {
+            steps {
+                withAWS(credentials: "${AWS_CRED_ID}", region: "${AWS_REGION}") {
+                    sh """
+                        unset AWS_PROFILE
+                        unset AWS_DEFAULT_PROFILE
+                        aws sts get-caller-identity
+                    """
                 }
             }
         }
