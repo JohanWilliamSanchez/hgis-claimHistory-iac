@@ -22,7 +22,7 @@ pipeline {
                     sh 'sam validate'
                     
                     echo "Escaneando template de infraestructura..."
-                    sh 'checkov -f template.yaml --soft-fail'
+                    sh 'checkov -f template.yml --soft-fail'
                 }
             }
         }
@@ -34,7 +34,7 @@ pipeline {
                         echo "Desplegando en: ${params.ENVIRONMENT}..."
                         sh """
                             sam deploy \
-                            --template-file template.yaml \
+                            --template-file template.yml \
                             --stack-name ${STACK_NAME} \
                             --resolve-s3 \
                             --parameter-overrides Environment=${params.ENVIRONMENT} \
