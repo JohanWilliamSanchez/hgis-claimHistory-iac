@@ -16,14 +16,15 @@ pipeline {
         stage('4. Static Security Scan (SAST & IaC)') {
             steps {
                 echo "Ejecutando análisis estático de seguridad..."
+
                 // 1. Validación estructural y semántica del template SAM/CloudFormation (Punto 2)
-                sh 'cfn-lint template.yaml || true' // Linter de CloudFormation
-                sh 'sam validate' // Validación semántica de AWS SAM
+                sh 'cd ./manual && cfn-lint template.yaml || true' // Linter de CloudFormation
+                sh 'cd ./manual && sam validate' // Validación semántica de AWS SAM
                 
                 // 2. Escaneo de seguridad del código y dependencias (DevSecOps)
                 // Nota: Reemplazar con las herramientas reales instaladas en tu Jenkins (ej: Checkov, cfn-nag, Trufflehog)
                 echo "Escaneando template de infraestructura buscando vulnerabilidades o datos sensibles expuestos..."
-                sh 'checkov -f template.yaml --soft-fail' 
+                sh 'cd ./manual && checkov -f template.yaml --soft-fail' 
             }
         }
 
@@ -34,7 +35,7 @@ pipeline {
                     
                     // Despliegue automatizado con estrategia Canary gestionada por el template/CodeDeploy
                     sh """
-                        sam deploy \
+                        cd ./manual && sam deploy \
                         --template-file template.yaml \
                         --stack-name ${STACK_NAME} \
                         --resolve-s3 \
