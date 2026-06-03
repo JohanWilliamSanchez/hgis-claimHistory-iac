@@ -15,34 +15,33 @@ pipeline {
 
         stage('4. Static Security Scan (SAST & IaC)') {
             steps {
-                echo "Ejecutando análisis estático de seguridad..."
-
-                // 1. Validación estructural y semántica del template SAM/CloudFormation (Punto 2)
-                sh 'cd ./manual && cfn-lint template.yaml || true' // Linter de CloudFormation
-                sh 'cd ./manual && sam validate' // Validación semántica de AWS SAM
-                
-                // 2. Escaneo de seguridad del código y dependencias (DevSecOps)
-                // Nota: Reemplazar con las herramientas reales instaladas en tu Jenkins (ej: Checkov, cfn-nag, Trufflehog)
-                echo "Escaneando template de infraestructura buscando vulnerabilidades o datos sensibles expuestos..."
-                sh 'cd ./manual && checkov -f template.yaml --soft-fail' 
+                dir('./manual') {                              // ← cambia el directorio para todos los sh
+                    echo "Ejecutando análisis estático de seguridad..."
+                    
+                    sh 'cfn-lint template.yaml || true'
+                    sh 'sam validate'
+                    
+                    echo "Escaneando template de infraestructura..."
+                    sh 'checkov -f template.yaml --soft-fail'
+                }
             }
         }
 
         stage('6. Deploy Backend (AWS SAM)') {
             steps {
-                withAWS(credentials: "${AWS_CRED_ID}", region: "${AWS_REGION}") {
-                    echo "Iniciando despliegue de infraestructura Serverless en ambiente: ${params.ENVIRONMENT}..."
-                    
-                    // Despliegue automatizado con estrategia Canary gestionada por el template/CodeDeploy
-                    sh """
-                        cd ./manual && sam deploy \
-                        --template-file template.yaml \
-                        --stack-name ${STACK_NAME} \
-                        --resolve-s3 \
-                        --parameter-overrides Environment=${params.ENVIRONMENT} \
-                        --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-                        --no-confirm-changeset
-                    """
+                dir('./manual') {                              // ← mismo fix aquí
+                    withAWS(credentials: "${AWS_CRED_ID}", region: "${AWS_REGION}") {
+                        echo "Desplegando en: ${params.ENVIRONMENT}..."
+                        sh """
+                            sam deploy \
+                            --template-file template.yaml \
+                            --stack-name ${STACK_NAME} \
+                            --resolve-s3 \
+                            --parameter-overrides Environment=${params.ENVIRONMENT} \
+                            --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+                            --no-confirm-changeset
+                        """
+                    }
                 }
             }
         }
