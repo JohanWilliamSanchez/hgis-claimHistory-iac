@@ -56,9 +56,7 @@ pipeline {
                             --resolve-s3 \
                             --parameter-overrides Environment=${params.ENVIRONMENT} \
                             --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-                            --no-confirm-changeset \
-                            --config-env default \
-                            --no-config-file
+                            --no-confirm-changeset
                         """
                     }
                 }
