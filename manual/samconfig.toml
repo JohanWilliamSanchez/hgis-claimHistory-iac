@@ -1,0 +1,14 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "manual"
+resolve_s3 = true
+s3_prefix = "manual"
+profile = "claimHistory"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Environment=\"manual\""
+image_repositories = []
+
+[default.global.parameters]
+region = "us-east-1"

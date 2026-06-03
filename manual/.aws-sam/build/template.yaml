@@ -1,0 +1,179 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Base infrastructure with CloudFront CDN for the Insurance Claims Serverless
+  Application.
+Parameters:
+  Environment:
+    Type: String
+    Default: manual
+    AllowedValues:
+    - dev
+    - staging
+    - prod
+    - manual
+    Description: Environment name (dev, staging, prod, manual)
+Globals:
+  Function:
+    Timeout: 15
+    MemorySize: 256
+    Architectures:
+    - arm64
+    Environment:
+      Variables:
+        ENVIRONMENT:
+          Ref: Environment
+        DYNAMODB_TABLE:
+          Ref: ClaimsTable
+        SECRETS_ARN: arn:aws:secretsmanager:region:account:secret:mock-sfc-credentials
+  Api:
+    Cors:
+      AllowMethods: '''GET,POST,PATCH,OPTIONS'''
+      AllowHeaders: '''Content-Type'''
+      AllowOrigin: '''*'''
+Resources:
+  ClaimsTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName:
+        Fn::Sub: ins-claims-table-${Environment}
+      PrimaryKey:
+        Name: id
+        Type: String
+  ClaimsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ins-claims-function-${Environment}
+      Handler: index.handler
+      Runtime: nodejs20.x
+      InlineCode: "exports.handler = async (event) => {\n  return {\n    statusCode:\
+        \ 200,\n    headers: { \"Content-Type\": \"application/json\", \"Access-Control-Allow-Origin\"\
+        : \"*\" },\n    body: JSON.stringify({ message: \"Cascar\xF3n de Claims desplegado\
+        \ correctamente por IaC\" })\n  };\n};\n"
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: ClaimsTable
+      Events:
+        CreateClaim:
+          Type: Api
+          Properties:
+            Path: /api/v1/claims
+            Method: post
+        GetClaim:
+          Type: Api
+          Properties:
+            Path: /api/v1/claims/{id}
+            Method: get
+        UpdateClaim:
+          Type: Api
+          Properties:
+            Path: /api/v1/claims/{id}
+            Method: patch
+  DocumentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ins-documents-function-${Environment}
+      Handler: index.handler
+      Runtime: nodejs20.x
+      InlineCode: "exports.handler = async (event) => {\n  return {\n    statusCode:\
+        \ 200,\n    headers: { \"Content-Type\": \"application/json\", \"Access-Control-Allow-Origin\"\
+        : \"*\" },\n    body: JSON.stringify({ message: \"Cascar\xF3n de Documents\
+        \ desplegado correctamente por IaC\" })\n  };\n};\n"
+      Policies:
+      - S3CrudPolicy:
+          BucketName:
+            Fn::Sub: ins-reports-bucket-${Environment}
+      Events:
+        GenerateReport:
+          Type: Api
+          Properties:
+            Path: /api/v1/documents/report
+            Method: post
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: ins-frontend-bucket-${Environment}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  CloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name:
+          Fn::Sub: ins-frontend-oac-${Environment}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2
+        DefaultRootObject: index.html
+        Origins:
+        - Id: S3OriginFrontend
+          DomainName:
+            Fn::GetAtt:
+            - FrontendBucket
+            - RegionalDomainName
+          OriginAccessControlId:
+            Ref: CloudFrontOriginAccessControl
+          S3OriginConfig:
+            OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3OriginFrontend
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - OPTIONS
+          CachedMethods:
+          - GET
+          - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          DefaultTTL: 86400
+          MaxTTL: 31536000
+          MinTTL: 0
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: AllowCloudFrontServicePrincipalReadOnly
+          Effect: Allow
+          Principal:
+            Service: cloudfront.amazonaws.com
+          Action: s3:GetObject
+          Resource:
+            Fn::Sub: arn:aws:s3:::${FrontendBucket}/*
+          Condition:
+            StringEquals:
+              AWS:SourceArn:
+                Fn::Sub: arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway base URL for the current environment
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/
+  FrontendBucketName:
+    Description: Nombre del bucket S3 de Frontend
+    Value:
+      Ref: FrontendBucket
+  CloudFrontURL:
+    Description: "URL de la distribuci\xF3n de CloudFront para acceder a la aplicaci\xF3\
+      n"
+    Value:
+      Fn::Sub: https://${CloudFrontDistribution.DomainName}
