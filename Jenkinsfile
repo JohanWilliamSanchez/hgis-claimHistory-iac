@@ -41,10 +41,15 @@ pipeline {
 
         stage('6. Deploy Backend (AWS SAM)') {
             steps {
-                dir('./manual') {                              // ← mismo fix aquí
+                dir('./manual') {
                     withAWS(credentials: "${AWS_CRED_ID}", region: "${AWS_REGION}") {
                         echo "Desplegando en: ${params.ENVIRONMENT}..."
                         sh """
+                            unset AWS_PROFILE
+                            unset AWS_DEFAULT_PROFILE
+                            unset AWS_CONFIG_FILE
+                            export AWS_DEFAULT_REGION=${AWS_REGION}
+                            
                             sam deploy \
                             --template-file template.yml \
                             --stack-name ${STACK_NAME} \
